@@ -1,0 +1,21 @@
+{
+  "name": "oracle",
+  "version": "1.0.0",
+  "description": "Oracle — AI that watches your screen in real time and speaks live feedback",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "node server.js"
+  },
+  "author": "Youssef | github.com/youssef-880",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0"
+  }
+}
