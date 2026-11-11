@@ -10,7 +10,6 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,8 +17,11 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 /* "gemini-flash-latest" is a rolling alias maintained by Google, so the app
    keeps working when individual model versions are retired. */
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Tried in order when a model is overloaded (503) or out of free quota (429).
+const GEMINI_MODELS = [...new Set([GEMINI_MODEL, 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite'])];
+const GEMINI_TIMEOUT_MS = 15000;
+const geminiUrl = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
@@ -150,13 +152,27 @@ app.post('/api/analyze', async (req, res) => {
       generationConfig: { temperature: 0.7, maxOutputTokens: 400 }
     };
 
-    const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiBody)
-    });
-
-    const data = await response.json().catch(() => ({}));
+    let response;
+    let data = {};
+    for (const model of GEMINI_MODELS) {
+      try {
+        response = await fetch(geminiUrl(model), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+          body: JSON.stringify(geminiBody),
+          signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS)
+        });
+        data = await response.json().catch(() => ({}));
+      } catch (err) {
+        if (err.name !== 'TimeoutError') throw err;
+        console.warn(`[Oracle] ${model} timed out after ${GEMINI_TIMEOUT_MS / 1000}s, trying the next model.`);
+        response = { ok: false, status: 504 };
+        data = { error: { message: `Gemini timed out after ${GEMINI_TIMEOUT_MS / 1000}s.` } };
+        continue;
+      }
+      if (response.status !== 429 && response.status !== 503) break;
+      console.warn(`[Oracle] ${model} returned ${response.status}, trying the next model.`);
+    }
 
     if (!response.ok) {
       const message =
