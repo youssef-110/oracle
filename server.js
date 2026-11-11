@@ -25,7 +25,10 @@ const geminiUrl = (model) =>
 
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
-app.use(express.static(path.join(__dirname)));
+// Serve only the UI. Serving __dirname exposed .env (the Gemini key) and server.js.
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/js', express.static(path.join(__dirname, 'js')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 /* ------------------------------------------------------------------ */
 /*  Mode definitions                                                   */
@@ -219,7 +222,8 @@ app.post('/api/analyze', async (req, res) => {
 
 function startServer() {
   return new Promise((resolve) => {
-    app.listen(PORT, () => {
+    // Loopback only: other machines on the network must not reach the Gemini key.
+    app.listen(PORT, '127.0.0.1', () => {
       console.log('┌──────────────────────────────────────────────┐');
       console.log('│  ORACLE — AI Screen Assistant                │');
       console.log(`│  Running at http://localhost:${PORT}            │`);

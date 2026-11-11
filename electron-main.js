@@ -49,7 +49,7 @@ async function createWindow() {
   win.setContentProtection(true);
 
   win.once('ready-to-show', () => win.show());
-  win.loadURL(`http://localhost:${PORT}`);
+  win.loadURL(`http://127.0.0.1:${PORT}`);
 }
 
 app.whenReady().then(createWindow);
